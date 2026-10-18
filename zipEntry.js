@@ -123,14 +123,20 @@ module.exports = function (/** object */ options, /*Buffer*/ input) {
                     }
                     return data;
                 } else {
-                    inflater.inflateAsync(function (result) {
+                    inflater.inflateAsync(function (result, err) {
+                        if (!callback) return;
+                        if (err) {
+                            // surface inflater/stream failures (e.g. the decompressed size cap
+                            // being exceeded) instead of validating the empty placeholder
+                            // buffer against the CRC
+                            callback(Buffer.alloc(0), err);
+                            return;
+                        }
                         result.copy(result, 0);
-                        if (callback) {
-                            if (!crc32OK(result)) {
-                                callback(result, Utils.Errors.BAD_CRC()); //si added error
-                            } else {
-                                callback(result);
-                            }
+                        if (!crc32OK(result)) {
+                            callback(result, Utils.Errors.BAD_CRC()); //si added error
+                        } else {
+                            callback(result);
                         }
                     });
                 }
