@@ -13,7 +13,17 @@ module.exports = function (/*Buffer*/ inbuf, /*number*/ expectedLength) {
 
     return {
         inflate: function () {
-            return zlib.inflateRawSync(inbuf, option);
+            var result = zlib.inflateRawSync(inbuf, option);
+            // zlib only honours maxOutputLength on node >= 15. Callers no longer
+            // pre-allocate (and thereby truncate to) the declared size, so enforce
+            // the cap by hand on older runtimes as well: never hand back more data
+            // than the entry declares. Throw a RangeError, the same type zlib throws
+            // when the cap is hit on node >= 15, so callers see one error type on
+            // every runtime.
+            if (result.length > maxOutputLength) {
+                throw new RangeError(Errors.MAX_OUTPUT_EXCEEDED().message);
+            }
+            return result;
         },
 
         inflateAsync: function (/*Function*/ callback) {

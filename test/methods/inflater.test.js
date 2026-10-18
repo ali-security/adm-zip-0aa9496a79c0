@@ -13,10 +13,9 @@ const Zip = require("../../adm-zip");
 const Inflater = require("../../methods/inflater");
 const Constants = require("../../util/constants");
 
-const nodeMajor = +(process.versions ? process.versions.node : "").split(".")[0] || 0;
-// zlib only honours maxOutputLength for the synchronous convenience methods, and the
-// inflater only passes it on node >= 15
-const syncCapSupported = nodeMajor >= 15;
+// The synchronous cap holds on every supported node version: zlib enforces
+// maxOutputLength itself on node >= 15, and the inflater checks the output size
+// by hand on older runtimes, throwing a RangeError in both cases.
 
 // 1 MiB of zeros deflates to roughly 1 KiB: a ~1000:1 amplification payload
 const BOMB_SIZE = 1024 * 1024;
@@ -75,13 +74,11 @@ describe("methods/inflater.js - decompression size cap", () => {
             expect(out.length).to.equal(0);
         });
 
-        it("refuses to inflate a bomb that declares an uncompressed size of 0", function () {
-            if (!syncCapSupported) this.skip();
+        it("refuses to inflate a bomb that declares an uncompressed size of 0", () => {
             expect(() => new Inflater(bombDeflated, 0).inflate()).to.throw(RangeError);
         });
 
-        it("refuses to inflate a bomb that understates its uncompressed size", function () {
-            if (!syncCapSupported) this.skip();
+        it("refuses to inflate a bomb that understates its uncompressed size", () => {
             expect(() => new Inflater(bombDeflated, 1024).inflate()).to.throw(RangeError);
         });
     });
@@ -167,8 +164,7 @@ describe("adm-zip.js - decompression bomb entries", () => {
         });
     });
 
-    it("readFile() refuses an entry declaring size 0 that inflates to more", function () {
-        if (!syncCapSupported) this.skip();
+    it("readFile() refuses an entry declaring size 0 that inflates to more", () => {
         const zip = new Zip(bombZipDeclaring(0));
         expect(() => zip.readFile(BOMB_NAME)).to.throw(RangeError);
     });
